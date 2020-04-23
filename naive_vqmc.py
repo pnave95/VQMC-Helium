@@ -1,5 +1,11 @@
 import numpy as np
+
+
+
+
+
 #import matplotlib
+from mpl_toolkits import mplot3d
 import matplotlib.pyplot as plt 
 from datetime import datetime
 
@@ -140,15 +146,15 @@ def UniformMetropolisSampler(a, b, M, delta=0.2):
 
 
 
-def GridSearch(amax=5, bmax=5, M=1000, delta=0.2):
+def GridSearch(amax=10, bmax=10, M=1000, delta=0.2):
 
 	aa = np.linspace(0,amax,50)
 	bb = np.linspace(0,bmax,50)
 
 	Results = np.zeros((len(aa), len(bb)))
 
-	for i in range(aa):
-		for j in range(bb):
+	for i in range(len(aa)):
+		for j in range(len(bb)):
 			a = aa[i]
 			b = bb[j]
 			energy = UniformMetropolisSampler(a, b, M, delta)
@@ -157,17 +163,33 @@ def GridSearch(amax=5, bmax=5, M=1000, delta=0.2):
 
 	print(Results)
 
+	#compute minimum energy	
+	minEnergy = np.amin(Results)
+	
+	# compute minimum energy parameters
+	i, j = np.unravel_index(Results.argmin(), Results.shape)
+	alphaMinimizer = aa[i]
+	betaMinimizer = bb[j]
+	print("Minimum Energy = " + str(minEnergy) + " = " + str(Results[i][j]))
+	print("Armgin alpha, beta = " + str(alphaMinimizer) + ", " + str(betaMinimizer))
+	
+
 	# Plot results
 
 	fig = plt.figure()
 	ax = plt.axes(projection='3d')
 
-	ax.plot_surface(aa, bb, Results, cmap='viridis', edgecolor='none')
+	# define 2d planes of axes
+	avals = np.outer(aa,np.ones(len(bb)))
+	bvals = np.outer(np.ones(len(aa)), bb)
 
-	title = "Approximate Wavefunction Energy"
+	ax.plot_surface(avals, bvals, Results, cmap='viridis', edgecolor='none')
+
+	title = r"Approximate Wavefunction Energy (M=" + str(M) + ", $\delta$=" + str(delta) + ")"
 	ax.set_title(title)
 	ax.set_xlabel(r"$\alpha$")
 	ax.set_ylabel(r"$\beta$")
+	
 
 	plt.show()
 
@@ -177,8 +199,13 @@ def GridSearch(amax=5, bmax=5, M=1000, delta=0.2):
 	#day = now.strftime("%d")
 	date_time = now.strftime("%Y-%m-%d-%H-%M-%S")
 
-	figname = "Approx_Energy_3d_Graph_M=" + str(M) + "_delta=" + str(delta) + "_timestamp=" + date_time + ".png"
+	metastring = "Approx_Energy_M=" + str(M) + "_delta=" + str(delta) + "_a=0-" + str(amax) + "_b=0-" + str(bmax) + "_timestamp=" + date_time
+	figname = "Graph_3D_" + metastring + ".png"
 	fig.savefig(figname, dpi=fig.dpi)
+
+	# save data
+	datastring = "Grid_" + metastring + ".csv"
+	np.savetxt(datastring, Results, delimiter=',')
 
 
 
@@ -193,7 +220,7 @@ def GridSearch(amax=5, bmax=5, M=1000, delta=0.2):
 
 
 if __name__ == "__main__":
-	print("hello, world")
+	print("Setting up variational quantum monte carlo for Helium....")
 	#v1 = np.array([1,1,1])
 	#v2 = np.array([0,0,1])
 	#r12 = psi_trial(0,0,v1,v2)
@@ -207,4 +234,4 @@ if __name__ == "__main__":
 	print(energy)
 
 	# try grid search test
-	results = GridSearch(5.0, 5.0, 5)
+	results = GridSearch(10.0, 10.0, 1000, 1.0)
