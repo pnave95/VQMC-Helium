@@ -117,7 +117,8 @@ def UniformMetropolisSampler(a, b, M, delta=0.2):
 
 	Ecurrent = LocalEnergy(a, b, v1, v2, r1, r2, r12)
 	PseudoDensityCurrent = ProportionalToPi(a, b, v1, v2)
-
+	
+	numberOfAcceptedMoves = 0
 
 	for i in range(M):
 		v1proposed = v1 + RandomVector(delta)
@@ -139,8 +140,11 @@ def UniformMetropolisSampler(a, b, M, delta=0.2):
 			Ecurrent = Eproposed
 			PseudoDensityCurrent = PseudoDensityProposed
 
+			numberOfAcceptedMoves += 1
+
 		approx += Ecurrent
 
+	print("For a,b = " + str(a) + ", " + str(b) +": acceptance rate = " + str(numberOfAcceptedMoves / M))
 	return approx / M 
 
 
@@ -228,10 +232,9 @@ if __name__ == "__main__":
 
 	a = 1.0
 	b = 1.2
-	M = 50
-	delta = 0.2
-	energy = UniformMetropolisSampler(a, b, M, delta)
-	print(energy)
+	M = 10000
+	delta = 0.1
+	print("M = " + str(M) + ", delta = " + str(delta))
 
 	# try grid search test
-	results = GridSearch(10.0, 10.0, 1000, 1.0)
+	results = GridSearch(10.0, 10.0, M, delta)
