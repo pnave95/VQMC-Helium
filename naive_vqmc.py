@@ -86,6 +86,8 @@ def RandomVector(delta=0.2):
 	return 2.0*np.random.rand(3) - 1
 
 
+
+# This function probabilistically chooses to accept or not accept a proposed Monte Carlo move
 def MetropolisAcceptance(densityCurrent, densityProposed):
 	if densityProposed >= densityCurrent:
 		return True
@@ -97,13 +99,16 @@ def MetropolisAcceptance(densityCurrent, densityProposed):
 	return False
 
 
+'''
+This function approximates the integral <psi(a,b)|H|psi(a,b)> by using the Metropolis-Hastings algorithm where the proposal probability (for moves in 2-electron position space) is uniform over the hypercube delta * [-1,1]^6.  M samples are taken for this approximation.
+'''
 def UniformMetropolisSampler(a, b, M, delta=0.2):
 
+	# initialize energy approximation 
+	#  (i.e. approximation of the integral <psi(a,b)|H|psi(a,b)> )
 	approx = 0
-	#v1 = np.array([0.0,0.0,0.0])
-	#v2 = np.array([0.0,0.0,0.0])
 
-	# randomly initialize in [-1,1]^6
+	# randomly initialize in [-1,1]^6 (2-electron position space)
 	v1 = RandomVector(1.0)
 	v2 = RandomVector(1.0)
 
@@ -258,13 +263,81 @@ def GridSearch(amax=10, bmax=10, M=1000, delta=0.2):
 	# Miobium.createSchema("a:number, b:number, M:natural, delta: number")
 	# Miobium.save(a,b,M,delta)
 
-#def GridSearchAndSave(a, b, M=50, delta=0.2):
+
+
+def FineGridSearch(amin, amax, Na, bmin, bmax, Nb, M=10000, delta=0.2):
+
+	aa = np.linspace(amin,amax,int(Na))
+	bb = np.linspace(bmin,bmax,int(Nb))
+
+	Results = np.zeros((len(aa), len(bb)))
+
+	for i in range(len(aa)):
+		for j in range(len(bb)):
+			a = aa[i]
+			b = bb[j]
+			energy = UniformMetropolisSampler(a, b, M, delta)
+			Results[i][j] = energy
+
+
+	print(Results)
+
+	#compute minimum energy	
+	minEnergy = np.nanmin(Results)
+	
+	# compute minimum energy parameters
+	i, j = np.unravel_index(np.nanargmin(Results), Results.shape)
+	alphaMinimizer = aa[i]
+	betaMinimizer = bb[j]
+	print("Minimum Energy = " + str(minEnergy) + " = " + str(Results[i][j]))
+	print("Armgin alpha, beta = " + str(alphaMinimizer) + ", " + str(betaMinimizer))
+	
+
+	# Plot results
+
+	fig = plt.figure()
+	ax = plt.axes(projection='3d')
+
+	# define 2d planes of axes
+	avals = np.outer(aa,np.ones(len(bb)))
+	bvals = np.outer(np.ones(len(aa)), bb)
+
+	ax.plot_surface(avals, bvals, Results, cmap='viridis', edgecolor='none')
+
+	title = r"Approximate Wavefunction Energy (M=" + str(M) + ", $\delta$=" + str(delta) + ")"
+	ax.set_title(title)
+	ax.set_xlabel(r"$\alpha$")
+	ax.set_ylabel(r"$\beta$")
+	
+
+	plt.show()
+
+	now = datetime.now()
+	#year = now.strftime("%Y")
+	#month = now.strftime("%m")
+	#day = now.strftime("%d")
+	date_time = now.strftime("%Y-%m-%d-%H-%M-%S")
+
+	metastring = "LocalSearch_Approx_Energy_M=" + str(M) + "_delta=" + str(delta) +  "_timestamp=" + date_time
+	figname = "Graph_3D_" + metastring + ".png"
+	fig.savefig(figname, dpi=fig.dpi)
+
+	# save data
+	datastring = "Grid_" + metastring + ".csv"
+	np.savetxt(datastring, Results, delimiter=',')
+
+
+	return Results
+
 
 
 # This function chooses M based on delta so that M*delta is always close to 25 if possible but so that M never goes above 100 or below 10
 def ChooseM(delta):
 	return min(100, max(10, math.ceil(25 / delta) ) )
 
+'''
+This function attempts to choose a maximum step size delta such that the Monte Carlo acceptance rate is as close to 0.5 as possible.  It does this by randomly trying 10 different values of delta and estimating their acceptance rates.  NOTE:  "maxTries" is currently an unused variable
+'''
 def AdaptivelyChooseDelta(a, b, deltaGuess=0.2, maxTries = 10):
 	
 	# check deltaGuess is within bounds
@@ -308,6 +381,7 @@ def AdaptivelyChooseDelta(a, b, deltaGuess=0.2, maxTries = 10):
 	'''
 	
 	return delta
+
 
 
 def AdaptiveGridSearch(amax=5, bmax=5, M=1000, initialDelta=0.2):
@@ -385,17 +459,14 @@ def AdaptiveGridSearch(amax=5, bmax=5, M=1000, initialDelta=0.2):
 
 if __name__ == "__main__":
 	print("Setting up variational quantum monte carlo for Helium....")
-	#v1 = np.array([1,1,1])
-	#v2 = np.array([0,0,1])
-	#r12 = psi_trial(0,0,v1,v2)
-	#print(r12)
+	
 
-	a = 1.0
-	b = 1.2
 	M = 100000
-	delta = 0.1
+	delta = 0.2
 	print("M = " + str(M) + ", delta = " + str(delta))
 
 	# try grid search test
-	#results = GridSearch(10.0, 10.0, M, delta)
-	results = AdaptiveGridSearch(5.0, 5.0, M, delta)
+	#results = AdaptiveGridSearch(5.0, 5.0, M, delta)
+
+	# do a local search to refine values of alpha, beta
+	results = FineGridSearch(1.5, 2.0, 25, 0.0, 0.5, 25, M, delta)
