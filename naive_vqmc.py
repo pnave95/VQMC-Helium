@@ -1,9 +1,5 @@
 import numpy as np
-
-
-
-
-
+import math
 #import matplotlib
 from mpl_toolkits import mplot3d
 import matplotlib.pyplot as plt 
@@ -148,7 +144,51 @@ def UniformMetropolisSampler(a, b, M, delta=0.2):
 	return approx / M 
 
 
+def ApproximateMetropolisAcceptanceRate(a, b, M, delta):
 
+	#approx = 0
+	#v1 = np.array([0.0,0.0,0.0])
+	#v2 = np.array([0.0,0.0,0.0])
+
+	# randomly initialize in [-1,1]^6
+	v1 = RandomVector(1.0)
+	v2 = RandomVector(1.0)
+
+	r1 = norm(v1)
+	r2 = norm(v2)
+	r12 = norm(v1 - v2)
+
+	Ecurrent = LocalEnergy(a, b, v1, v2, r1, r2, r12)
+	PseudoDensityCurrent = ProportionalToPi(a, b, v1, v2)
+	
+	numberOfAcceptedMoves = 0
+
+	for i in range(M):
+		v1proposed = v1 + RandomVector(delta)
+		v2proposed = v2 + RandomVector(delta)
+
+		r1proposed = norm(v1proposed)
+		r2proposed = norm(v2proposed)
+		r12proposed = norm(v1proposed - v2proposed)
+
+		Eproposed = LocalEnergy(a, b, v1proposed, v2proposed, r1proposed, r2proposed, r12proposed)
+		PseudoDensityProposed = ProportionalToPi(a, b, v1proposed, v2proposed)
+
+		if MetropolisAcceptance(PseudoDensityCurrent, PseudoDensityProposed):
+			v1 = v1proposed
+			v2 = v2proposed
+			r1 = r1proposed
+			r2 = r2proposed
+			r12 = r12proposed
+			Ecurrent = Eproposed
+			PseudoDensityCurrent = PseudoDensityProposed
+
+			numberOfAcceptedMoves += 1
+
+		#approx += Ecurrent
+
+	#print("For a,b = " + str(a) + ", " + str(b) +": acceptance rate = " + str(numberOfAcceptedMoves / M))
+	return numberOfAcceptedMoves / M
 
 def GridSearch(amax=10, bmax=10, M=1000, delta=0.2):
 
@@ -220,7 +260,127 @@ def GridSearch(amax=10, bmax=10, M=1000, delta=0.2):
 
 #def GridSearchAndSave(a, b, M=50, delta=0.2):
 
+
+# This function chooses M based on delta so that M*delta is always close to 25 if possible but so that M never goes above 100 or below 10
+def ChooseM(delta):
+	return min(100, max(10, math.ceil(25 / delta) ) )
+
+def AdaptivelyChooseDelta(a, b, deltaGuess=0.2, maxTries = 10):
 	
+	# check deltaGuess is within bounds
+		
+	delta = deltaGuess
+	M = ChooseM(delta)
+	leftDelta = 0.02
+	rightDelta = 3.0
+
+	if(deltaGuess < leftDelta):
+		delta = leftDelta
+	elif(deltaGuess > rightDelta):
+		delta = rightDelta
+	M = ChooseM(delta)
+
+	rate = ApproximateMetropolisAcceptanceRate(a, b, M, delta)
+	if (abs(rate - 0.5) < 0.2):
+		return delta
+
+	# randomly sample values of delta
+	
+	#for i in range(maxTries):  # TODO:  fix this... python can't take an object as an integer
+	for i in range(10):
+		trialDelta = np.random.uniform(leftDelta, rightDelta)
+		M = ChooseM(delta)
+		trialRate = ApproximateMetropolisAcceptanceRate(a, b, M, trialDelta)
+		if(abs(trialRate - 0.5) < 0.2):
+			return trialDelta
+		if(abs(trialRate - 0.5) < abs(rate - 0.5)):
+			delta = trialDelta
+			rate = trialRate	
+	'''
+	eta = 0.1
+
+	rate = ApproximateMetropolisAcceptanceRate(a, b, M, delta)
+	tries = 0
+
+	while( (rate > 0.65 or rate < 0.35) and tries < maxTries):
+		# approximate numerical derivative of acceptance rate w.r.t. delta
+		if(delta )
+	'''
+	
+	return delta
+
+
+def AdaptiveGridSearch(amax=5, bmax=5, M=1000, initialDelta=0.2):
+
+	aa = np.linspace(0,amax,50)
+	bb = np.linspace(0,bmax,50)
+
+	Results = np.zeros((len(aa), len(bb)))
+
+	delta = initialDelta
+
+	for i in range(len(aa)):
+		for j in range(len(bb)):
+			a = aa[i]
+			b = bb[j]
+			newDelta = AdaptivelyChooseDelta(a, b, delta)
+			delta = newDelta
+			energy = UniformMetropolisSampler(a, b, M, delta)
+			print("delta=" + str(delta) + ", energy=" + str(energy))
+			Results[i][j] = energy
+
+
+	print(Results)
+
+	#compute minimum energy	
+	minEnergy = np.amin(Results)
+	
+	# compute minimum energy parameters
+	i, j = np.unravel_index(Results.argmin(), Results.shape)
+	alphaMinimizer = aa[i]
+	betaMinimizer = bb[j]
+	print("Minimum Energy = " + str(minEnergy) + " = " + str(Results[i][j]))
+	print("Armgin alpha, beta = " + str(alphaMinimizer) + ", " + str(betaMinimizer))
+	
+
+	# Plot results
+
+	fig = plt.figure()
+	ax = plt.axes(projection='3d')
+
+	# define 2d planes of axes
+	avals = np.outer(aa,np.ones(len(bb)))
+	bvals = np.outer(np.ones(len(aa)), bb)
+
+	ax.plot_surface(avals, bvals, Results, cmap='viridis', edgecolor='none')
+
+	title = r"Approximate Wavefunction Energy (M=" + str(M) + ", $\delta$=Variable)"
+	ax.set_title(title)
+	ax.set_xlabel(r"$\alpha$")
+	ax.set_ylabel(r"$\beta$")
+
+
+	plt.show()
+
+	now = datetime.now()
+	#year = now.strftime("%Y")
+	#month = now.strftime("%m")
+	#day = now.strftime("%d")
+	date_time = now.strftime("%Y-%m-%d-%H-%M-%S")
+
+	metastring = "Approx_Energy_M=" + str(M) + "_delta=Variable_a=0-" + str(amax) + "_b=0-" + str(bmax) + "_timestamp=" + date_time
+	figname = "Graph_3D_" + metastring + ".png"
+	fig.savefig(figname, dpi=fig.dpi)
+
+	# save data
+	datastring = "Grid_" + metastring + ".csv"
+	np.savetxt(datastring, Results, delimiter=',')
+
+
+
+	return Results
+
+
 
 
 if __name__ == "__main__":
@@ -232,9 +392,10 @@ if __name__ == "__main__":
 
 	a = 1.0
 	b = 1.2
-	M = 10000
+	M = 100000
 	delta = 0.1
 	print("M = " + str(M) + ", delta = " + str(delta))
 
 	# try grid search test
-	results = GridSearch(10.0, 10.0, M, delta)
+	#results = GridSearch(10.0, 10.0, M, delta)
+	results = AdaptiveGridSearch(5.0, 5.0, M, delta)
