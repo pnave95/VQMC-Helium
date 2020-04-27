@@ -461,7 +461,7 @@ if __name__ == "__main__":
 	print("Setting up variational quantum monte carlo for Helium....")
 	
 
-	M = 100000
+	M = 200000
 	delta = 0.2
 	print("M = " + str(M) + ", delta = " + str(delta))
 
@@ -469,4 +469,4 @@ if __name__ == "__main__":
 	#results = AdaptiveGridSearch(5.0, 5.0, M, delta)
 
 	# do a local search to refine values of alpha, beta
-	results = FineGridSearch(1.5, 2.0, 25, 0.0, 0.5, 25, M, delta)
+	results = FineGridSearch(1.6, 1.9, 25, 0.2, 0.5, 20, M, delta)
