@@ -75,7 +75,7 @@ def UniformMetropolisSampler(a, b, M, delta=0.2):
 			numberOfAcceptedMoves += 1
 
 		approx += Ecurrent  # This must come before the variance update b/c of the convention adopted in the 'SampleVarianceLocalEnergy' function
-		variance = SampleVarianceLocalEnergy(Ecurrent, (approx / i), variance, i)
+		variance = SampleVarianceLocalEnergy(Ecurrent, (approx / (i+1)), variance, i+1)
 
 		if(i%1000 == 0):
 			print("Variance at i=" + str(i) + ":  " + str(variance))
@@ -407,7 +407,7 @@ if __name__ == "__main__":
 	print("Setting up variational quantum monte carlo for Helium....")
 	
 
-	M = 100000
+	M = 50000
 	delta = 0.2
 	print("M = " + str(M) + ", delta = " + str(delta))
 
