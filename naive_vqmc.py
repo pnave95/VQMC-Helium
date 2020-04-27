@@ -5,79 +5,7 @@ from mpl_toolkits import mplot3d
 import matplotlib.pyplot as plt 
 from datetime import datetime
 
-def norm(v):
-	x, y, z = v
-	return np.sqrt(x*x + y*y + z*z)
-
-def psi_1(a, r1, r2):
-	return np.exp(-a*(r1 + r2))
-
-def psi_2(b, r12):
-	return np.exp(r12 / (2*(1+b*r12)))
-
-def psi_trial(a, b, v1, v2):
-	r1 = norm(v1)
-	r2 = norm(v2)
-	r12 = norm(v1 - v2)
-	return np.exp(-a*(r1 + r2))*np.exp(r12 / (2*(1+b*r12)))
-
-'''
-This yields the second derivative of psi_1 w.r.t. coordinate i of electron e
-
-e = 1 or 2 = electron 1 or 2
-i = 1,2, or 3 (for x,y, or z)
-r_e = r_e
-coord_ie = ith coordinate for electron e
-rk = r_not e
-'''
-def d2_psi_1_variable(a, r_e, coord_ie, r_k):
-	return (a / r_e)*(-1 + (coord_ie**2 / r_e)*(1/r_e + a))*psi_1(a, r_e, r_k)
-
-
-def d2_psi_2_variable(b, coord_ie, coord_ik, r12):
-	f1 = (coord_ie - coord_ik)**2 / (r12**2) * ( 1/(2 * (1 + b*r12)**2) - 2*b/(1 + b*r12) -1/r12 )
-	return psi_2(b, r12) * (1 / (2*(1+b*r12)**2) ) * ( f1 + 1/r12) 
-
-def d_psi_1_variable(a, r_e, coord_ie, r_k):
-	return -(a * coord_ie / r_e) * psi_1(a, r_e, r_k)
-
-def d_psi_2_variable(b, coord_ie, coord_ik, r12):
-	return psi_2(b, r12) * (1 / (2*(1+b*r12)**2) ) * (coord_ie - coord_ik)/r12
-
-def d2_psi_trial_variable(psi_1, d_psi_1, d2_psi_1, psi_2, d_psi_2, d2_psi_2):
-	return d2_psi_1 * psi_2 + 2*d_psi_1*d_psi_2 + psi_1 * d2_psi_2
-
-def Laplacian_psi_trial_variable(a, b, v_e, r_e, v_k, r_k, r12):
-	psi1 = psi_1(a, r_e, r_k)
-	psi2 = psi_2(b, r12)
-
-	Laplacian = 0
-
-	for i in range(3):
-		d_psi_1_i = d_psi_1_variable(a, r_e, v_e[i], r_k)
-		d_psi_2_i = d_psi_2_variable(b, v_e[i], v_k[i], r12)
-		d2_psi_1_i = d2_psi_1_variable(a, r_e, v_e[i], r_k)
-		d2_psi_2_i = d2_psi_2_variable(b, v_e[i], v_k[i], r12)
-
-		d2_psi_trial_i = d2_psi_trial_variable(psi1, d_psi_1_i, d2_psi_1_i, psi2, d_psi_2_i, d2_psi_2_i)
-		Laplacian += d2_psi_trial_i
-
-	return Laplacian
-
-
-def HamiltonianPsi(a, b, v1, v2, r1, r2, r12):
-	Laplacian1_psi = Laplacian_psi_trial_variable(a, b, v1, r1, v2, r2, r12)
-	Laplacian2_psi = Laplacian_psi_trial_variable(a, b, v2, r2, v1, r1, r12)
-
-	return (-1/2)*Laplacian1_psi + (-1/2)*Laplacian2_psi + (-2/r1 -2/r2 +1/r12)*psi_trial(a,b,v1,v2)
-
-
-def LocalEnergy(a, b, v1, v2, r1, r2, r12):
-	return HamiltonianPsi(a, b, v1, v2, r1, r2, r12) / psi_trial(a,b,v1,v2)
-
-def ProportionalToPi(a, b, v1, v2):
-	return psi_trial(a,b,v1,v2)**2
-
+from helium import LocalEnergy, ProportionalToPi, norm, SampleVarianceLocalEnergy
 
 # return random 3-vector with entries uniformly sampled in delta*[-1,1)
 def RandomVector(delta=0.2):
@@ -87,7 +15,7 @@ def RandomVector(delta=0.2):
 
 
 
-# This function probabilistically chooses to accept or not accept a proposed Monte Carlo move
+# This function probabilistically chooses to accept or not accept a proposed Monte Carlo move based on the Metropolis condition.  Boolean returned.
 def MetropolisAcceptance(densityCurrent, densityProposed):
 	if densityProposed >= densityCurrent:
 		return True
@@ -107,6 +35,9 @@ def UniformMetropolisSampler(a, b, M, delta=0.2):
 	# initialize energy approximation 
 	#  (i.e. approximation of the integral <psi(a,b)|H|psi(a,b)> )
 	approx = 0
+
+	# initialize approximation of local energy variance
+	variance = 0
 
 	# randomly initialize in [-1,1]^6 (2-electron position space)
 	v1 = RandomVector(1.0)
@@ -143,12 +74,19 @@ def UniformMetropolisSampler(a, b, M, delta=0.2):
 
 			numberOfAcceptedMoves += 1
 
-		approx += Ecurrent
+		approx += Ecurrent  # This must come before the variance update b/c of the convention adopted in the 'SampleVarianceLocalEnergy' function
+		variance = SampleVarianceLocalEnergy(Ecurrent, (approx / i), variance, i)
+
+		if(i%1000 == 0):
+			print("Variance at i=" + str(i) + ":  " + str(variance))
 
 	print("For a,b = " + str(a) + ", " + str(b) +": acceptance rate = " + str(numberOfAcceptedMoves / M))
 	return approx / M 
 
 
+'''
+This function approximates the metropolis algorithm acceptance rate for given variational parameters a,b and given delta > 0 which determines the proposal probability distribution.  This function is provided as a subroutine which samplers can build upon to create procedures that adaptively choose delta based on the values of a and b in order to achieve an acceptance rate in some desired range.
+'''
 def ApproximateMetropolisAcceptanceRate(a, b, M, delta):
 
 	#approx = 0
@@ -195,6 +133,11 @@ def ApproximateMetropolisAcceptanceRate(a, b, M, delta):
 	#print("For a,b = " + str(a) + ", " + str(b) +": acceptance rate = " + str(numberOfAcceptedMoves / M))
 	return numberOfAcceptedMoves / M
 
+
+
+'''
+This function runs an exhaustive grid search over a 50x50 grid for a in [0, amax], b in [0, bmax].  A fixed delta is used (i.e. a fixed proposal probability function is used)
+'''
 def GridSearch(amax=10, bmax=10, M=1000, delta=0.2):
 
 	aa = np.linspace(0,amax,50)
@@ -264,7 +207,10 @@ def GridSearch(amax=10, bmax=10, M=1000, delta=0.2):
 	# Miobium.save(a,b,M,delta)
 
 
-
+'''
+Run a grid search over values of a,b:  Na x Nb grid, with a in [amin, amax], b in [bmin, bmax].
+A fixed value of delta is used (==> a fixed proposal probability kernel is used)
+'''
 def FineGridSearch(amin, amax, Na, bmin, bmax, Nb, M=10000, delta=0.2):
 
 	aa = np.linspace(amin,amax,int(Na))
@@ -461,7 +407,7 @@ if __name__ == "__main__":
 	print("Setting up variational quantum monte carlo for Helium....")
 	
 
-	M = 200000
+	M = 100000
 	delta = 0.2
 	print("M = " + str(M) + ", delta = " + str(delta))
 
@@ -469,4 +415,4 @@ if __name__ == "__main__":
 	#results = AdaptiveGridSearch(5.0, 5.0, M, delta)
 
 	# do a local search to refine values of alpha, beta
-	results = FineGridSearch(1.6, 1.9, 25, 0.2, 0.5, 20, M, delta)
+	results = FineGridSearch(1.6, 1.9, 20, 0.2, 0.5, 20, M, delta)
