@@ -9,3 +9,9 @@ in the file 'naive_vqmc.py'
 
 --------------------------------
 Other functions exist in the various files to run multiple chains for a single pair (alpha, beta) of parameter values so that convergence can be visualized directly via graphs.
+
+--------------------------------
+Not Included:
+- Sophisticated error analysis (including any estimation of the exponetial or integrated autocorrelation times)
+- Discussion of 'self-consistent' vs 'honest' error estimation and error analysis
+- Any theoretically justified treatment of initialization bias, correlated sample effects, or metastability
